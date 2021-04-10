@@ -13,7 +13,7 @@ const programId = new anchor.web3.PublicKey(PROGRAM_ID_KEY);
 
 const opts: anchor.web3.ConfirmOptions = {
   preflightCommitment: "singleGossip",
-  commitment: "singleGossip",
+  commitment: "finalized",
 };
 
 const seed = "testSeed";
@@ -42,6 +42,9 @@ async function launchInstructions() {
     program.programId
   );
 
+  console.log("userWallet", userAccount.publicKey.toBase58());
+  console.log("Derived wallet (counter)", counter.toBase58());
+
   try {
     await program.rpc.create(provider.wallet.publicKey, {
       accounts: {
@@ -57,13 +60,13 @@ async function launchInstructions() {
           newAccountPubkey: counter,
           programId: program.programId,
           seed: seed,
-          space: 8 + 24,
+          space: 8 + 128,
         }),
       ],
     });
 
     let counterAccount = await program.account.counter(counter);
-    console.log(counterAccount);
+    console.log("Derived Account after init & creation:", counterAccount);
   } catch (e) {
     console.log(e);
   }
