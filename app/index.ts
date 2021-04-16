@@ -1,14 +1,26 @@
 import * as anchor from "@project-serum/anchor";
+import { Idl } from "@project-serum/anchor";
 import { Token, TOKEN_PROGRAM_ID, u64 } from "@solana/spl-token";
+
+import idlFile from "../target/idl/anchor_playground.json";
 
 document.getElementById("test").onclick = testConnection;
 document.getElementById("launch").onclick = launchInstructions;
 
 const NETWORK_URL_KEY = "http://localhost:8899";
+const PROGRAM_ID_KEY = "D6RGDud9LBRLY6pgjdzUehFttJpyLA85QAQoYQwzUUKZ";
+const COLLATERAL_TOKEN_PUBKEY = "";
 
-const connection = new anchor.web3.Connection(NETWORK_URL_KEY);
+const connection = new anchor.web3.Connection(NETWORK_URL_KEY, "root");
+const programId = new anchor.web3.PublicKey(PROGRAM_ID_KEY);
 
+const seed = "testSeed";
+const idl = idlFile as Idl;
 let userAccount: anchor.web3.Account;
+let userWallet: anchor.Wallet;
+let userDerivedAddress: anchor.web3.PublicKey;
+let provider: anchor.Provider;
+let program: anchor.Program;
 let mintAuthority;
 
 async function testConnection() {
@@ -19,10 +31,7 @@ async function testConnection() {
 
 async function launchInstructions() {
   userAccount = await newAccountWithLamports(connection, 5e9);
-
-  mintAuthority = new anchor.web3.PublicKey(
-    "3SNSMUA8SR8Dg9VZiq441kgrpUQtcNZgoQPRXvP5ZS5h"
-  );
+  mintAuthority = await newAccountWithLamports(connection, 7e8);
 
   console.log("mintAuthority", mintAuthority);
 
@@ -30,13 +39,11 @@ async function launchInstructions() {
     const collateralToken = await Token.createMint(
       connection,
       userAccount,
-      mintAuthority,
-      mintAuthority,
+      mintAuthority.publicKey,
+      null,
       8,
       TOKEN_PROGRAM_ID
     );
-
-    // await sleep(40000);
 
     const mintInfo = await collateralToken.getMintInfo();
     console.log("mintInfo", mintInfo);
@@ -45,7 +52,21 @@ async function launchInstructions() {
       userAccount.publicKey
     );
 
-    console.log("collateralTokenAccount", userCollateralTokenAccount);
+    const collateralAmount = new anchor.BN(5e8);
+
+    const info = await collateralToken.mintTo(
+      userCollateralTokenAccount, // dest
+      mintAuthority.publicKey, // authority
+      [mintAuthority], // multiSigners
+      tou64(collateralAmount) // amount
+    );
+
+    console.log(info);
+
+    console.log(
+      "collateralTokenAccount",
+      userCollateralTokenAccount.toBase58()
+    );
   } catch (e) {
     console.log(e);
   }
