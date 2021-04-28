@@ -1,82 +1,75 @@
-import * as anchor from "@project-serum/anchor";
-import { Idl } from "@project-serum/anchor";
+import { Provider, Program, web3, Idl, workspace } from "@project-serum/anchor";
 import { Token, TOKEN_PROGRAM_ID, u64 } from "@solana/spl-token";
+import Wallet from "@project-serum/sol-wallet-adapter";
+import idl from "../target/idl/anchor_playground.json";
 
-import idlFile from "../target/idl/anchor_playground.json";
-
-document.getElementById("test").onclick = testConnection;
+document.getElementById("connect").onclick = connectWallet;
 document.getElementById("launch").onclick = launchInstructions;
 
 const NETWORK_URL_KEY = "http://localhost:8899";
-const PROGRAM_ID_KEY = "D6RGDud9LBRLY6pgjdzUehFttJpyLA85QAQoYQwzUUKZ";
-const COLLATERAL_TOKEN_PUBKEY = "";
+const PROVIDER_URL_KEY = "https://www.sollet.io";
+const PROGRAM_ID_KEY = "5qQCkVwvGtNh3TwGHffS5bg1SSonETMYUcYSU9ETphHk";
+const wallet = new Wallet(PROVIDER_URL_KEY, NETWORK_URL_KEY);
+const connection = new web3.Connection(NETWORK_URL_KEY, "root");
 
-const connection = new anchor.web3.Connection(NETWORK_URL_KEY, "root");
-const programId = new anchor.web3.PublicKey(PROGRAM_ID_KEY);
+const opts: web3.ConfirmOptions = {
+  preflightCommitment: "singleGossip",
+  commitment: "singleGossip",
+};
 
-const seed = "testSeed";
-const idl = idlFile as Idl;
-let userAccount: anchor.web3.Account;
-let userWallet: anchor.Wallet;
-let userDerivedAddress: anchor.web3.PublicKey;
-let provider: anchor.Provider;
-let program: anchor.Program;
-let mintAuthority;
+const programId = new web3.PublicKey(PROGRAM_ID_KEY);
 
-async function testConnection() {
-  let { blockhash } = await connection.getRecentBlockhash();
-  console.log(blockhash);
-  console.log("Connected!");
+const provider = new Provider(connection, wallet, opts);
+const poolProgram = new Program(idl as Idl, programId, provider);
+
+async function connectWallet() {
+  wallet.connect();
 }
 
-async function launchInstructions() {
-  userAccount = await newAccountWithLamports(connection, 5e9);
-  mintAuthority = await newAccountWithLamports(connection, 7e8);
+wallet.on("connect", () => {
+  console.log("Connected to wallet ", wallet.publicKey.toBase58());
+});
 
-  console.log("mintAuthority", mintAuthority);
+wallet.on("disconnect", () => {
+  console.log("Disconnected from wallet");
+});
+
+async function launchInstructions() {
+  console.log("User wallet address", wallet.publicKey.toBase58());
+
+  const authority = poolProgram.provider.wallet.publicKey;
+  console.log("authority", authority.toBase58());
+
+  const associatedPoolAccount = await poolProgram.account.userAccount.associatedAddress(authority);
+
+  const isUserAccountInitialized: boolean = await isInitialized(connection, associatedPoolAccount);
+
+  if (!isUserAccountInitialized) {
+    console.log("Account not initialized");
+
+    await poolProgram.rpc.initializeUserAccount({
+      accounts: {
+        userAccount: associatedPoolAccount,
+        authority,
+        rent: web3.SYSVAR_RENT_PUBKEY,
+        systemProgram: web3.SystemProgram.programId,
+      },
+    });
+  } else {
+    console.log("Account already initialized");
+  }
 
   try {
-    const collateralToken = await Token.createMint(
-      connection,
-      userAccount,
-      mintAuthority.publicKey,
-      null,
-      8,
-      TOKEN_PROGRAM_ID
-    );
-
-    const mintInfo = await collateralToken.getMintInfo();
-    console.log("mintInfo", mintInfo);
-
-    const userCollateralTokenAccount = await collateralToken.createAccount(
-      userAccount.publicKey
-    );
-
-    const collateralAmount = new anchor.BN(5e8);
-
-    const info = await collateralToken.mintTo(
-      userCollateralTokenAccount, // dest
-      mintAuthority.publicKey, // authority
-      [mintAuthority], // multiSigners
-      tou64(collateralAmount) // amount
-    );
-
-    console.log(info);
-
-    console.log(
-      "collateralTokenAccount",
-      userCollateralTokenAccount.toBase58()
-    );
   } catch (e) {
     console.log(e);
   }
 }
 
 export async function newAccountWithLamports(
-  connection: anchor.web3.Connection,
-  lamports = 50e8
-): Promise<anchor.web3.Account> {
-  const account = new anchor.web3.Account();
+  connection: web3.Connection,
+  lamports = 50e8,
+): Promise<web3.Account> {
+  const account = new web3.Account();
 
   let retries = 30;
 
@@ -101,30 +94,31 @@ export function sleep(ms: number): Promise<void> {
 }
 
 export async function isInitialized(
-  connection: anchor.web3.Connection,
-  accountPubKey: anchor.web3.PublicKey
+  connection: web3.Connection,
+  accountPubKey: web3.PublicKey,
 ): Promise<boolean> {
   const accountInfo = await connection.getAccountInfo(accountPubKey);
   console.log(accountInfo);
   return !!accountInfo;
 }
 
+export async function isSplAccountInitialized(mint: Token, address: web3.PublicKey) {
+  const splAccountInfo = await mint.getAccountInfo(address);
+  return !!splAccountInfo;
+}
+
 export const tou64 = (amount) => {
   return new u64(amount.toString());
 };
 
-export const createToken = async ({
-  connection,
-  payingAccount,
-  mintAuthority,
-}) => {
+export const createToken = async ({ connection, payingAccount, mintAuthority }) => {
   const token = await Token.createMint(
     connection,
     payingAccount,
     mintAuthority,
     null,
     8,
-    TOKEN_PROGRAM_ID
+    TOKEN_PROGRAM_ID,
   );
   return token;
 };
