@@ -102,26 +102,17 @@ pub mod anchor_playground {
                 return Err(ErrorCode::WithdrawalBalanceConflict.into());
             }
 
-            
-            &[ctx.accounts.user_account.to_account_info().key.as_ref(),
-                    &[self.nonce]],
+            // let seeds = &[ANCHOR_PLAYGROUND_SEED.as_bytes(), &[self.nonce]];
+            // let signer = &[&seeds[..]];
 
-            // let seeds = &[
-                //     ctx.accounts.user_account.to_account_info().key.as_ref(),
-                //     &[self.nonce],
-                // ];
-            let seeds = &[ANCHOR_PLAYGROUND_SEED.as_bytes(), &[self.nonce]];
-            let signer = &[&seeds[..]];
-
-            let cpi_ctx = CpiContext::new_with_signer(
+            let cpi_ctx = CpiContext::new(
                 ctx.accounts.token_program.clone(),
                 Transfer {
                     from: ctx.accounts.user_associated_token_account.to_account_info(),
                     to: ctx.accounts.pool_token_account.to_account_info(),
-                    // authority: ctx.accounts.pool_token_mint_authority.to_account_info(),
                     authority: ctx.accounts.user_account.to_account_info(),
                 },
-                signer,
+                // signer,
             );
             token::transfer(cpi_ctx, amount)?;
 
@@ -164,25 +155,27 @@ pub struct InitializeUserAccount<'info> {
 #[derive(Accounts)]
 pub struct Deposit<'info> {
     #[account(mut)]
-    pool_token_account: CpiAccount<'info, TokenAccount>,
+    pub pool_token_account: CpiAccount<'info, TokenAccount>,
     //TODO: Check ACL
-    pool_token_mint_authority: AccountInfo<'info>,
+    #[account(mut)]
+    pub pool_token_mint_authority: AccountInfo<'info>,
     #[account(mut)]
     pub user_associated_token_account: CpiAccount<'info, TokenAccount>,
     #[account("token_program.key == &token::ID")]
-    token_program: AccountInfo<'info>,
+    pub token_program: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
     #[account(mut)]
-    pool_token_account: CpiAccount<'info, TokenAccount>,
+    pub pool_token_account: CpiAccount<'info, TokenAccount>,
     //TODO: Check ACL
-    pool_token_mint_authority: AccountInfo<'info>,
+    #[account(mut)]
+    pub pool_token_mint_authority: AccountInfo<'info>,
     #[account(mut)]
     pub user_associated_token_account: CpiAccount<'info, TokenAccount>,
     #[account("token_program.key == &token::ID")]
-    token_program: AccountInfo<'info>,
+    pub token_program: AccountInfo<'info>,
     #[account(mut, signer)]
     pub user_account: AccountInfo<'info>,
 }

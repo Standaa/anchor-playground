@@ -1,7 +1,7 @@
 import assert from "assert";
 import { web3, workspace, setProvider, Provider, BN, Wallet } from "@project-serum/anchor";
 import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 
 describe("anchor-playground", () => {
   const provider = Provider.local();
@@ -43,7 +43,6 @@ describe("anchor-playground", () => {
     );
 
     poolTokenAccount = await poolTokenMint.createAccount(poolAuthority);
-    // await poolTokenMint.mintTo(poolTokenAccount, poolAuthority, [payer], 3000);
   });
 
   it("Initializes Pool correctly", async () => {
@@ -65,8 +64,6 @@ describe("anchor-playground", () => {
       },
     );
 
-    // console.log(tx);
-
     const poolState = await program.state();
 
     assert.ok(poolState.nonce === nonce);
@@ -75,7 +72,6 @@ describe("anchor-playground", () => {
     assert.ok(poolState.poolTokenMint.equals(poolTokenMint.publicKey));
 
     const poolTokenAccountAfterMint = await poolTokenMint.getAccountInfo(poolTokenAccount);
-    // console.log("poolTokenAccountAfterMint", poolTokenAccountAfterMint.amount.toNumber());
     assert.ok(poolTokenAccountAfterMint.amount.toNumber() === 10e7);
   });
 
@@ -95,15 +91,9 @@ describe("anchor-playground", () => {
     userWallet = new Wallet(userAccount);
     console.log("userWalletAddress", userWallet.publicKey.toBase58());
 
-    userAssociatedAddress = await poolTokenMintAfterInit.createAssociatedTokenAccount(
-      userWallet.publicKey,
-    );
+    userAssociatedAddress = await poolTokenMintAfterInit.createAccount(userWallet.publicKey);
 
-    // console.log("userAssociatedAddress", userAssociatedAddress.toBase58());
-    // console.log("poolAuthority", poolAuthority.toBase58());
-    // console.log("poolTokenAccount", poolTokenAccount.toBase58());
-
-    const tx = await program.state.rpc.deposit(new BN(12), {
+    const tx = await program.state.rpc.deposit(new BN(50000), {
       accounts: {
         poolTokenMintAuthority: poolAuthority,
         poolTokenAccount: poolTokenAccount,
@@ -111,8 +101,7 @@ describe("anchor-playground", () => {
         tokenProgram: TOKEN_PROGRAM_ID,
       },
     });
-
-    // console.log(tx);
+    console.log(tx);
 
     const poolTokenAccountAfterDeposit = await poolTokenMintAfterInit.getAccountInfo(
       poolTokenAccount,
@@ -125,16 +114,14 @@ describe("anchor-playground", () => {
     console.log("poolTokenAccountAfterDeposit", poolTokenAccountAfterDeposit.amount.toNumber());
     console.log("userTokenAccountAfterDeposit", userTokenAccountAfterDeposit.amount.toNumber());
 
-    // assert.ok(counterAccount.authority.equals(provider.wallet.publicKey));
-    // assert.ok(counterAccount.count.toNumber() === 0);
-    assert.ok(true);
+    assert.ok(poolTokenAccountAfterDeposit.amount.toNumber() === 99950000);
+    assert.ok(userTokenAccountAfterDeposit.amount.toNumber() === 50000);
   });
 
   it("Withdraws from user account to wallet", async () => {
     const poolState = await program.state();
     const mintAddress: PublicKey = poolState.poolTokenMint;
 
-    // Refetch the token instead of getting poolTokenMint directly
     const poolTokenMintAfterInit = new Token(
       provider.connection,
       mintAddress,
@@ -152,9 +139,10 @@ describe("anchor-playground", () => {
     //     poolTokenAccount: poolTokenAccount,
     //     userAssociatedTokenAccount: userAssociatedAddress,
     //     tokenProgram: TOKEN_PROGRAM_ID,
-    //     userAccount: userWallet.publicKey,
     //   },
+    //   signer: [userWallet.publicKey],
     // });
+    // console.log(tx);
 
     const ix = await program.state.instruction.withdraw(new BN(10), {
       accounts: {
@@ -188,6 +176,5 @@ describe("anchor-playground", () => {
 
     // assert.ok(counterAccount.authority.equals(provider.wallet.publicKey));
     // assert.ok(counterAccount.count.toNumber() === 0);
-    assert.ok(true);
   });
 });
