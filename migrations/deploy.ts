@@ -1,14 +1,14 @@
-import { Token } from "@solana/spl-token";
-
-const { web3, setProvider, workspace, createMint } = require("@project-serum/anchor");
+import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+const { web3, setProvider, workspace } = require("@project-serum/anchor");
 
 module.exports = async function (provider) {
   setProvider(provider);
 
   const connection = provider.connection;
   const deployer = provider.wallet.payer;
-  const accountAsSeed = new web3.Account();
   const poolProgram = workspace.AnchorPlayground;
+
+  const ANCHOR_PLAYGROUND_SEED = Buffer.from("AnchorPlayground");
 
   await poolProgram.state.rpc.new({
     accounts: {},
@@ -16,7 +16,7 @@ module.exports = async function (provider) {
 
   // Create a PDA
   const [poolAuthority, nonce] = await web3.PublicKey.findProgramAddress(
-    [accountAsSeed.publicKey.toBuffer()], // Random account used as seed
+    [ANCHOR_PLAYGROUND_SEED],
     poolProgram.programId,
   );
 
@@ -27,30 +27,34 @@ module.exports = async function (provider) {
   // decimals: number - decimals Location of the decimal place
   // programId: PublicKey - programId Optional token programId, uses the system programId by default
 
-  const poolMint: Token = await createMint(
+  const poolTokenMint: Token = await Token.createMint(
     connection,
     deployer,
-    deployer,
-    deployer,
+    poolAuthority,
+    poolAuthority,
     8,
-    poolProgram.programId,
+    TOKEN_PROGRAM_ID,
   );
 
-  await poolProgram.state.rpc.initialize(
+  const poolTokenAccount = await poolTokenMint.createAccount(poolAuthority);
+
+  const tx = await poolProgram.state.rpc.initialize(
     nonce,
     provider.wallet.publicKey,
     provider.wallet.publicKey,
-    poolAuthority,
-    accountAsSeed.publicKey,
     {
       accounts: {
-        poolMint: poolMint.publicKey,
+        poolTokenMint: poolTokenMint.publicKey,
+        poolTokenAccount: poolTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        poolTokenMintAuthority: poolAuthority,
       },
     },
   );
 
-  console.log("Nonce", nonce);
-  console.log("AccountAsSeed pubkey", accountAsSeed.publicKey.toBase58());
-  console.log("PoolMint pubkey", poolMint.publicKey.toBase58());
+  console.log(tx);
+
+  console.log("poolAuthority", poolAuthority.toBase58());
+  console.log("poolTokenMint pubkey", poolTokenMint.publicKey.toBase58());
   console.log("wallet publickey :", provider.wallet.publicKey.toBase58());
 };

@@ -37,6 +37,7 @@ pub mod anchor_playground {
             authority: Pubkey,
             signer: Pubkey,
         ) -> Result<()> {
+            msg!("Initialize Pool log !");
             self.initialized = true;
             self.nonce = nonce;
             self.signer = signer;
@@ -45,7 +46,7 @@ pub mod anchor_playground {
             self.pool_token_account = *ctx.accounts.pool_token_account.to_account_info().key; // Token Mint Account pub key
 
             // Mint total token supply to deployer account
-            let amount = u64::pow(10, 3);
+            let amount = u64::pow(10, 8);
 
             let seeds = &[ANCHOR_PLAYGROUND_SEED.as_bytes(), &[self.nonce]];
             let signer = &[&seeds[..]];
@@ -64,9 +65,14 @@ pub mod anchor_playground {
             Ok(())
         }
 
-        // self.pool_account = *ctx.accounts.pool_account.to_account_info().key; // Token Account pub key
-
         pub fn deposit(&mut self, ctx: Context<Deposit>, amount: u64) -> Result<()> {
+            if amount == 0 {
+                return Err(ErrorCode::DepositTooSmall.into());
+            }
+            if amount > u64::MAX {
+                return Err(ErrorCode::DepositTooBig.into());
+            }
+
             let seeds = &[ANCHOR_PLAYGROUND_SEED.as_bytes(), &[self.nonce]];
             let signer = &[&seeds[..]];
 
@@ -76,6 +82,44 @@ pub mod anchor_playground {
                     from: ctx.accounts.pool_token_account.to_account_info(),
                     to: ctx.accounts.user_associated_token_account.to_account_info(),
                     authority: ctx.accounts.pool_token_mint_authority.to_account_info(),
+                },
+                signer,
+            );
+            token::transfer(cpi_ctx, amount)?;
+
+            Ok(())
+        }
+
+        pub fn withdraw(&mut self, ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+            if amount == 0 {
+                return Err(ErrorCode::WithdrawalTooSmall.into());
+            }
+            if amount > u64::MAX {
+                return Err(ErrorCode::WithdrawalTooBig.into());
+            }
+            let user_balance = ctx.accounts.user_associated_token_account.amount;
+            if user_balance < amount {
+                return Err(ErrorCode::WithdrawalBalanceConflict.into());
+            }
+
+            
+            &[ctx.accounts.user_account.to_account_info().key.as_ref(),
+                    &[self.nonce]],
+
+            // let seeds = &[
+                //     ctx.accounts.user_account.to_account_info().key.as_ref(),
+                //     &[self.nonce],
+                // ];
+            let seeds = &[ANCHOR_PLAYGROUND_SEED.as_bytes(), &[self.nonce]];
+            let signer = &[&seeds[..]];
+
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.clone(),
+                Transfer {
+                    from: ctx.accounts.user_associated_token_account.to_account_info(),
+                    to: ctx.accounts.pool_token_account.to_account_info(),
+                    // authority: ctx.accounts.pool_token_mint_authority.to_account_info(),
+                    authority: ctx.accounts.user_account.to_account_info(),
                 },
                 signer,
             );
@@ -129,6 +173,20 @@ pub struct Deposit<'info> {
     token_program: AccountInfo<'info>,
 }
 
+#[derive(Accounts)]
+pub struct Withdraw<'info> {
+    #[account(mut)]
+    pool_token_account: CpiAccount<'info, TokenAccount>,
+    //TODO: Check ACL
+    pool_token_mint_authority: AccountInfo<'info>,
+    #[account(mut)]
+    pub user_associated_token_account: CpiAccount<'info, TokenAccount>,
+    #[account("token_program.key == &token::ID")]
+    token_program: AccountInfo<'info>,
+    #[account(mut, signer)]
+    pub user_account: AccountInfo<'info>,
+}
+
 #[associated]
 pub struct UserAccount {
     pub shares: u64,
@@ -139,8 +197,14 @@ pub struct UserAccount {
 pub enum ErrorCode {
     #[msg("You are not authorized to perform this action.")]
     Unauthorized,
-}
-
-fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
+    #[msg("Deposit Amount too large")]
+    DepositTooBig,
+    #[msg("Deposit Amount too small")]
+    DepositTooSmall,
+    #[msg("Withdrawal Amount too small")]
+    WithdrawalTooSmall,
+    #[msg("Withdrawal Amount too large")]
+    WithdrawalTooBig,
+    #[msg("Cannot withdraw more than holdings")]
+    WithdrawalBalanceConflict,
 }
