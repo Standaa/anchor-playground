@@ -102,17 +102,13 @@ pub mod anchor_playground {
                 return Err(ErrorCode::WithdrawalBalanceConflict.into());
             }
 
-            // let seeds = &[ANCHOR_PLAYGROUND_SEED.as_bytes(), &[self.nonce]];
-            // let signer = &[&seeds[..]];
-
             let cpi_ctx = CpiContext::new(
                 ctx.accounts.token_program.clone(),
                 Transfer {
                     from: ctx.accounts.user_associated_token_account.to_account_info(),
                     to: ctx.accounts.pool_token_account.to_account_info(),
-                    authority: ctx.accounts.user_account.to_account_info(),
+                    authority: ctx.accounts.authority.to_account_info(),
                 },
-                // signer,
             );
             token::transfer(cpi_ctx, amount)?;
 
@@ -176,8 +172,8 @@ pub struct Withdraw<'info> {
     pub user_associated_token_account: CpiAccount<'info, TokenAccount>,
     #[account("token_program.key == &token::ID")]
     pub token_program: AccountInfo<'info>,
-    #[account(mut, signer)]
-    pub user_account: AccountInfo<'info>,
+    #[account(signer)]
+    pub authority: AccountInfo<'info>,
 }
 
 #[associated]

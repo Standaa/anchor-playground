@@ -20,6 +20,7 @@ describe("anchor-playground", () => {
   let nonce: number;
   let poolTokenMint: Token;
   let poolTokenAccount: web3.PublicKey;
+  let testTokenAccount: web3.PublicKey;
   let userAccount: web3.Account;
   let userWallet: Wallet;
   let userAssociatedAddress: web3.PublicKey;
@@ -43,6 +44,16 @@ describe("anchor-playground", () => {
     );
 
     poolTokenAccount = await poolTokenMint.createAccount(poolAuthority);
+
+    // userAccount = await newAccountWithLamports(provider.connection);
+    userAccount = new web3.Account();
+    userWallet = new Wallet(userAccount);
+    userAssociatedAddress = await poolTokenMint.createAccount(userWallet.publicKey);
+    testTokenAccount = await poolTokenMint.createAccount(provider.wallet.publicKey);
+
+    console.log("userWalletAddress :", userWallet.publicKey.toBase58());
+    console.log("userAccount publicKey :", userAccount.publicKey.toBase58());
+    console.log("userAssociatedAddress :", userAssociatedAddress.toBase58());
   });
 
   it("Initializes Pool correctly", async () => {
@@ -87,28 +98,21 @@ describe("anchor-playground", () => {
       payer,
     );
 
-    userAccount = new web3.Account();
-    userWallet = new Wallet(userAccount);
-    console.log("userWalletAddress", userWallet.publicKey.toBase58());
-
-    userAssociatedAddress = await poolTokenMintAfterInit.createAccount(userWallet.publicKey);
-
-    const tx = await program.state.rpc.deposit(new BN(50000), {
+    await program.state.rpc.deposit(new BN(50000), {
       accounts: {
         poolTokenMintAuthority: poolAuthority,
         poolTokenAccount: poolTokenAccount,
-        userAssociatedTokenAccount: userAssociatedAddress,
+        userAssociatedTokenAccount: testTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
       },
     });
-    console.log(tx);
 
     const poolTokenAccountAfterDeposit = await poolTokenMintAfterInit.getAccountInfo(
       poolTokenAccount,
     );
 
     const userTokenAccountAfterDeposit = await poolTokenMintAfterInit.getAccountInfo(
-      userAssociatedAddress,
+      testTokenAccount,
     );
 
     console.log("poolTokenAccountAfterDeposit", poolTokenAccountAfterDeposit.amount.toNumber());
@@ -129,7 +133,6 @@ describe("anchor-playground", () => {
       payer,
     );
 
-    console.log("userAssociatedAddress", userAssociatedAddress.toBase58());
     console.log("poolAuthority", poolAuthority.toBase58());
     console.log("poolTokenAccount", poolTokenAccount.toBase58());
 
@@ -148,9 +151,9 @@ describe("anchor-playground", () => {
       accounts: {
         poolTokenMintAuthority: poolAuthority,
         poolTokenAccount: poolTokenAccount,
-        userAssociatedTokenAccount: userAssociatedAddress,
+        userAssociatedTokenAccount: testTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
-        userAccount: userWallet.publicKey,
+        authority: provider.wallet.publicKey,
       },
     });
 
@@ -159,7 +162,7 @@ describe("anchor-playground", () => {
     let { blockhash } = await provider.connection.getRecentBlockhash();
     tx.recentBlockhash = blockhash;
     tx.feePayer = provider.wallet.publicKey;
-    let signed = await userWallet.signTransaction(tx);
+    let signed = await provider.wallet.signTransaction(tx);
     let txid = await provider.connection.sendRawTransaction(signed.serialize());
     await provider.connection.confirmTransaction(txid);
     console.log(txid);
@@ -168,7 +171,7 @@ describe("anchor-playground", () => {
       poolTokenAccount,
     );
     const userTokenAccountAfterDeposit = await poolTokenMintAfterInit.getAccountInfo(
-      userAssociatedAddress,
+      testTokenAccount,
     );
 
     console.log("poolTokenAccountAfterWithdrawal", poolTokenAccountAfterDeposit.amount.toNumber());
@@ -178,3 +181,31 @@ describe("anchor-playground", () => {
     // assert.ok(counterAccount.count.toNumber() === 0);
   });
 });
+
+export async function newAccountWithLamports(
+  connection: web3.Connection,
+  lamports = 50e8,
+): Promise<web3.Account> {
+  const account = new web3.Account();
+
+  let retries = 30;
+
+  console.log(`Request Airdrop...`);
+  await connection.requestAirdrop(account.publicKey, lamports);
+
+  while (true) {
+    await sleep(500);
+    if (lamports == (await connection.getBalance(account.publicKey))) {
+      console.log(`Airdrop finished after ${retries} retries`);
+      return account;
+    }
+    if (--retries <= 0) {
+      break;
+    }
+  }
+  throw new Error(`Airdrop of ${lamports} failed`);
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
