@@ -8,7 +8,7 @@ document.getElementById("launch").onclick = launchInstructions;
 
 const NETWORK_URL_KEY = "http://localhost:8899";
 const PROVIDER_URL_KEY = "https://www.sollet.io";
-const PROGRAM_ID_KEY = "CuTKQ9ouUNsvpMLFvR17chNN1sEpBPbDfigngHaN7FjE";
+const PROGRAM_ID_KEY = "GTsknv2JJodePTioUMyuJ1s7PtpT9sRjshx9wNqKcuWo";
 const wallet = new Wallet(PROVIDER_URL_KEY, NETWORK_URL_KEY);
 const connection = new web3.Connection(NETWORK_URL_KEY, "root");
 
@@ -107,6 +107,18 @@ async function launchInstructions() {
     },
   });
   // console.log(tx);
+
+  //@ts-expect-error
+  const tx = await poolProgram.state.rpc.withdraw(new BN(10), {
+    accounts: {
+      poolTokenMintAuthority: poolAuthority,
+      poolTokenAccount: poolTokenAccount,
+      userAssociatedTokenAccount: userAssociatedTokenAddress.address,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      authority: wallet.publicKey,
+    },
+  });
+  console.log(tx);
 }
 
 // export async function newAccountWithLamports(
