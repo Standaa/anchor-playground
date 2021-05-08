@@ -45,11 +45,10 @@ describe("anchor-playground", () => {
 
     poolTokenAccount = await poolTokenMint.createAccount(poolAuthority);
 
-    // userAccount = await newAccountWithLamports(provider.connection);
-    userAccount = new web3.Account();
+    userAccount = await newAccountWithLamports(provider.connection);
     userWallet = new Wallet(userAccount);
-    userAssociatedAddress = await poolTokenMint.createAccount(userWallet.publicKey);
-    testTokenAccount = await poolTokenMint.createAccount(provider.wallet.publicKey);
+    userAssociatedAddress = await poolTokenMint.createAssociatedTokenAccount(userWallet.publicKey);
+    testTokenAccount = await poolTokenMint.createAssociatedTokenAccount(provider.wallet.publicKey);
 
     console.log("userWalletAddress :", userWallet.publicKey.toBase58());
     console.log("userAccount publicKey :", userAccount.publicKey.toBase58());
@@ -136,18 +135,7 @@ describe("anchor-playground", () => {
     console.log("poolAuthority", poolAuthority.toBase58());
     console.log("poolTokenAccount", poolTokenAccount.toBase58());
 
-    // const tx = await program.state.rpc.withdraw(new BN(10), {
-    //   accounts: {
-    //     poolTokenMintAuthority: poolAuthority,
-    //     poolTokenAccount: poolTokenAccount,
-    //     userAssociatedTokenAccount: userAssociatedAddress,
-    //     tokenProgram: TOKEN_PROGRAM_ID,
-    //   },
-    //   signer: [userWallet.publicKey],
-    // });
-    // console.log(tx);
-
-    const ix = await program.state.instruction.withdraw(new BN(10), {
+    const tx = await program.state.rpc.withdraw(new BN(10), {
       accounts: {
         poolTokenMintAuthority: poolAuthority,
         poolTokenAccount: poolTokenAccount,
@@ -156,22 +144,33 @@ describe("anchor-playground", () => {
         authority: provider.wallet.publicKey,
       },
     });
+    console.log(tx);
 
-    let tx = new web3.Transaction().add(ix);
+    // const ix = await program.state.instruction.withdraw(new BN(10), {
+    //   accounts: {
+    //     poolTokenMintAuthority: poolAuthority,
+    //     poolTokenAccount: poolTokenAccount,
+    //     userAssociatedTokenAccount: userAssociatedAddress,
+    //     tokenProgram: TOKEN_PROGRAM_ID,
+    //     authority: userWallet.publicKey,
+    //   },
+    // });
 
-    let { blockhash } = await provider.connection.getRecentBlockhash();
-    tx.recentBlockhash = blockhash;
-    tx.feePayer = provider.wallet.publicKey;
-    let signed = await provider.wallet.signTransaction(tx);
-    let txid = await provider.connection.sendRawTransaction(signed.serialize());
-    await provider.connection.confirmTransaction(txid);
-    console.log(txid);
+    // let tx = new web3.Transaction().add(ix);
+
+    // let { blockhash } = await provider.connection.getRecentBlockhash();
+    // tx.recentBlockhash = blockhash;
+    // tx.feePayer = provider.wallet.publicKey;
+    // let signed = await userWallet.signTransaction(tx);
+    // let txid = await provider.connection.sendRawTransaction(signed.serialize());
+    // await provider.connection.confirmTransaction(txid);
+    // console.log(txid);
 
     const poolTokenAccountAfterDeposit = await poolTokenMintAfterInit.getAccountInfo(
       poolTokenAccount,
     );
     const userTokenAccountAfterDeposit = await poolTokenMintAfterInit.getAccountInfo(
-      testTokenAccount,
+      userAssociatedAddress,
     );
 
     console.log("poolTokenAccountAfterWithdrawal", poolTokenAccountAfterDeposit.amount.toNumber());
