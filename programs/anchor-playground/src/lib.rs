@@ -63,8 +63,7 @@ pub struct CreateUserAccount<'info> {
     pub system_program: AccountInfo<'info>,
 }
 
-// (space = "80")
-#[associated]
+#[associated(space = "16")]
 pub struct UserAccount {
     pub data: u64,
     // pub option_list: Vec<u8>,
