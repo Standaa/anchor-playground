@@ -1,48 +1,71 @@
-#![feature(proc_macro_hygiene)]
-
 use anchor_lang::prelude::*;
-
-// Define the program's instruction handlers.
 
 #[program]
 mod anchor_playground {
     use super::*;
 
-    pub fn create(ctx: Context<Create>, authority: Pubkey) -> ProgramResult {
-        let counter = &mut ctx.accounts.counter;
-        counter.authority = authority;
-        counter.count = 0;
-        Ok(())
+    #[state]
+    pub struct AnchorPlaygroundState {
+        pub initialized: bool,
+        pub nonce: u8,
+        pub authority: Pubkey,
+        pub signer: Pubkey,
     }
 
-    pub fn increment(ctx: Context<Increment>) -> ProgramResult {
-        let counter = &mut ctx.accounts.counter;
-        counter.count += 1;
+    impl AnchorPlaygroundState {
+        pub fn new(_ctx: Context<New>) -> Result<Self, ProgramError> {
+            Ok(Self {
+                initialized: false,
+                nonce: 0,
+                authority: Pubkey::default(),
+                signer: Pubkey::default(),
+            })
+        }
+
+        pub fn initialize(
+            &mut self,
+            _ctx: Context<Initialize>,
+            nonce: u8,
+            authority: Pubkey,
+            signer: Pubkey,
+        ) -> Result<(), ProgramError> {
+            self.initialized = true;
+            self.nonce = nonce;
+            self.signer = signer;
+            self.authority = authority;
+
+            Ok(())
+        }
+    }
+
+    pub fn create_user_account(ctx: Context<CreateUserAccount>) -> ProgramResult {
+        let user_account = &mut ctx.accounts.user_account;
+        user_account.data = 9;
+        // user_account.option_list = vec![8];
+
         Ok(())
     }
 }
 
-// Define the validated accounts for each handler.
+#[derive(Accounts)]
+pub struct New {}
 
 #[derive(Accounts)]
-pub struct Create<'info> {
-    #[account(init)]
-    pub counter: ProgramAccount<'info, Counter>,
-    pub rent: Sysvar<'info, Rent>,
-}
+pub struct Initialize {}
 
 #[derive(Accounts)]
-pub struct Increment<'info> {
-    #[account(mut, has_one = authority)]
-    pub counter: ProgramAccount<'info, Counter>,
-    #[account(signer)]
+pub struct CreateUserAccount<'info> {
+    #[account(associated = authority)]
+    pub user_account: ProgramAccount<'info, UserAccount>,
+    #[account(mut)] //, signer
     pub authority: AccountInfo<'info>,
+    pub rent: Sysvar<'info, Rent>,
+    pub system_program: AccountInfo<'info>,
 }
 
-// Define the program owned accounts.
-
-#[account]
-pub struct Counter {
-    pub authority: Pubkey,
-    pub count: u64,
+// (space = "80")
+#[associated]
+pub struct UserAccount {
+    pub data: u64,
+    // pub option_list: Vec<u8>,
 }

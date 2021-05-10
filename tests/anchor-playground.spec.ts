@@ -1,45 +1,58 @@
 import assert from "assert";
-import * as anchor from "@project-serum/anchor";
+import { Provider, setProvider, web3, workspace } from "@project-serum/anchor";
+import { Keypair } from "@solana/web3.js";
 
 describe("anchor-playground", () => {
-  const provider = anchor.Provider.local();
+  const provider = Provider.local();
 
-  // Configure the client to use the local cluster.
-  anchor.setProvider(provider);
+  setProvider(provider);
 
-  // Counter for the tests.
-  const counter = new anchor.web3.Account();
+  const program = workspace.AnchorPlayground;
+  const ANCHOR_PLAYGROUND_SEED = Buffer.from("ANCHOR_PLAYGROUND_SEED");
 
-  // Program for the tests.
-  const program = anchor.workspace.AnchorPlayground;
+  it("Initializes", async () => {
+    const [pdaAuthority, nonce] = await web3.PublicKey.findProgramAddress(
+      [ANCHOR_PLAYGROUND_SEED],
+      program.programId
+    );
 
-  it("Creates a counter", async () => {
-    await program.rpc.create(provider.wallet.publicKey, {
-      accounts: {
-        counter: counter.publicKey,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-      },
-      signers: [counter],
-      instructions: [await program.account.counter.createInstruction(counter)],
+    await program.state.rpc.new({
+      accounts: {},
     });
 
-    let counterAccount = await program.account.counter(counter.publicKey);
+    await program.state.rpc.initialize(
+      nonce,
+      provider.wallet.publicKey,
+      provider.wallet.publicKey,
+      {
+        accounts: {},
+      }
+    );
 
-    assert.ok(counterAccount.authority.equals(provider.wallet.publicKey));
-    assert.ok(counterAccount.count.toNumber() === 0);
-  });
+    const playgroundState = await program.state();
+    const authority = provider.wallet.publicKey;
 
-  it("Updates a counter", async () => {
-    await program.rpc.increment({
-      accounts: {
-        counter: counter.publicKey,
-        authority: provider.wallet.publicKey,
-      },
-    });
+    // const userKeypair = new web3.Account();
 
-    const counterAccount = await program.account.counter(counter.publicKey);
+    const associatedAddress = await program.account.userAccount.associatedAddress(
+      authority
+    );
 
-    assert.ok(counterAccount.authority.equals(provider.wallet.publicKey));
-    assert.ok(counterAccount.count.toNumber() == 1);
+    try {
+      await program.rpc.createUserAccount({
+        accounts: {
+          userAccount: associatedAddress,
+          authority: authority,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          systemProgram: web3.SystemProgram.programId,
+        },
+      });
+    } catch (e) {
+      console.log("Err", e);
+    }
+
+    const account = await program.account.userAccount.associated(authority);
+    assert.ok(account.data.toNumber() === 9);
+    // console.log(Array.from(account.optionList)[0]);
   });
 });
