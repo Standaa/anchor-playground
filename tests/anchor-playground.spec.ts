@@ -32,8 +32,6 @@ describe("anchor-playground", () => {
     const playgroundState = await program.state();
     const authority = provider.wallet.publicKey;
 
-    // const userKeypair = new web3.Account();
-
     const associatedAddress = await program.account.userAccount.associatedAddress(
       authority
     );
