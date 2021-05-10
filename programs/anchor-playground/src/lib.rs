@@ -41,7 +41,7 @@ mod anchor_playground {
     pub fn create_user_account(ctx: Context<CreateUserAccount>) -> ProgramResult {
         let user_account = &mut ctx.accounts.user_account;
         user_account.data = 9;
-        // user_account.option_list = vec![8];
+        user_account.option_list = vec![8];
 
         Ok(())
     }
@@ -55,7 +55,7 @@ pub struct Initialize {}
 
 #[derive(Accounts)]
 pub struct CreateUserAccount<'info> {
-    #[account(associated = authority)]
+    #[account(associated = authority, space=128)]
     pub user_account: ProgramAccount<'info, UserAccount>,
     #[account(mut)] //, signer
     pub authority: AccountInfo<'info>,
@@ -63,8 +63,8 @@ pub struct CreateUserAccount<'info> {
     pub system_program: AccountInfo<'info>,
 }
 
-#[associated(space = "16")]
+#[associated]
 pub struct UserAccount {
     pub data: u64,
-    // pub option_list: Vec<u8>,
+    pub option_list: Vec<u8>,
 }
